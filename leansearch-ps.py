@@ -220,6 +220,15 @@ def setup_virtual_env(repo_dir: Path) -> Path:
 
     print_step(f"Creating virtual environment at {venv_dir}")
     run_command([sys.executable, "-m", "venv", str(venv_dir)])
+
+    # Ensure pip is available in the venv (some systems don't include it by default)
+    venv_python = get_venv_python(venv_dir)
+    try:
+        run_command([str(venv_python), "-m", "ensurepip", "--upgrade"], capture_output=True)
+    except subprocess.CalledProcessError:
+        # ensurepip might fail if pip is already there, that's okay
+        pass
+
     print_success("Virtual environment created")
 
     return venv_dir
