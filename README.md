@@ -4,18 +4,31 @@ Automated setup script for the [REAL-Prover](https://github.com/frenzymath/REAL-
 
 ## Quick Start
 
+**One-line installation:**
+
 ```bash
-# Run with default settings (installs to ~/leansearch-ps and starts server)
-python3 leansearch_ps.py
+curl -sSL https://raw.githubusercontent.com/kim-em/run_leansearch_ps/master/leansearch-ps.py | python3 -
+```
+
+This downloads and runs the setup script, which installs everything to the current directory and starts the server.
+
+**Or download and run manually:**
+
+```bash
+# Download the script
+curl -O https://raw.githubusercontent.com/kim-em/run_leansearch_ps/master/leansearch-ps.py
+
+# Run with default settings (installs to current directory and starts server)
+python3 leansearch-ps.py
 
 # Or specify custom install directory
-python3 leansearch_ps.py --install-dir /path/to/install
+python3 leansearch-ps.py --install-dir /path/to/install
 
 # Skip tests (faster)
-python3 leansearch_ps.py --skip-tests
+python3 leansearch-ps.py --skip-tests
 
 # Just install, don't start server
-python3 leansearch_ps.py --no-start-server
+python3 leansearch-ps.py --no-start-server
 ```
 
 **Note:** By default, the script will start the server after installation. Press Ctrl+C to stop it.
@@ -56,10 +69,10 @@ The script automatically:
 ### Command Line Options
 
 ```bash
-python3 leansearch_ps.py [OPTIONS]
+python3 leansearch-ps.py [OPTIONS]
 
 Options:
-  --install-dir PATH   Installation directory (default: ~/leansearch-ps)
+  --install-dir PATH   Installation directory (default: .)
   --port PORT          Server port (default: 8080)
   --skip-tests         Skip running self-tests
   --no-start-server    Don't start server after installation
@@ -73,10 +86,10 @@ Start the server:
 
 ```bash
 # Use the generated startup script
-~/leansearch-ps/REAL-Prover/LeanSearch-PS-inference/start_server.sh
+./REAL-Prover/LeanSearch-PS-inference/start_server.sh
 
 # Or manually:
-cd ~/leansearch-ps/REAL-Prover/LeanSearch-PS-inference
+cd ./REAL-Prover/LeanSearch-PS-inference
 source venv/bin/activate
 export KMP_DUPLICATE_LIB_OK=TRUE
 python server.py
@@ -138,7 +151,7 @@ The base model is ~15GB. If download fails:
 ```bash
 # Clear partial downloads and retry
 rm -rf ~/.cache/huggingface/hub/models--intfloat--e5-mistral-7b-instruct
-python3 leansearch_ps.py
+python3 leansearch-ps.py
 ```
 
 ### Server fails to start
@@ -169,7 +182,7 @@ You can verify manually by starting the server and querying it.
 Default installation structure:
 
 ```
-~/leansearch-ps/
+./
 ├── venv/                          # Python virtual environment
 ├── REAL-Prover/
 │   └── LeanSearch-PS-inference/

@@ -42,5 +42,8 @@ models/
 *.faiss
 answers.json
 
+# REAL-Prover repository (cloned by script)
+REAL-Prover/
+
 # Logs
 *.log
