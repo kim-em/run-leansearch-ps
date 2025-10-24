@@ -345,6 +345,52 @@ def clone_repository(install_dir: Path) -> Path:
     return repo_dir
 
 
+def ensure_git_lfs() -> bool:
+    """Check if git-lfs is installed and install it if possible"""
+    try:
+        run_command(["git", "lfs", "version"], capture_output=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    print_step("Git LFS not found, attempting to install...")
+
+    # Try to install git-lfs based on platform
+    system = platform.system()
+    try:
+        if system == "Linux":
+            # Try apt-get first (Debian/Ubuntu)
+            try:
+                run_command(["sudo", "apt-get", "update"], capture_output=True)
+                run_command(["sudo", "apt-get", "install", "-y", "git-lfs"], capture_output=True)
+            except subprocess.CalledProcessError:
+                # Try yum (RHEL/CentOS)
+                try:
+                    run_command(["sudo", "yum", "install", "-y", "git-lfs"], capture_output=True)
+                except subprocess.CalledProcessError:
+                    return False
+        elif system == "Darwin":
+            # Try Homebrew on macOS
+            run_command(["brew", "install", "git-lfs"], capture_output=True)
+        else:
+            return False
+
+        # Initialize git-lfs
+        run_command(["git", "lfs", "install"], capture_output=True)
+        print_success("Git LFS installed")
+        return True
+    except Exception:
+        return False
+
+
+def verify_file_size(file_path: Path, min_size_mb: int) -> bool:
+    """Verify a file exists and is at least min_size_mb megabytes"""
+    if not file_path.exists():
+        return False
+    size_mb = file_path.stat().st_size / (1024 * 1024)
+    return size_mb >= min_size_mb
+
+
 def download_models(repo_dir: Path):
     """Download pre-trained models and FAISS index"""
     models_dir = repo_dir / "LeanSearch-PS-inference" / "models"
@@ -353,25 +399,57 @@ def download_models(repo_dir: Path):
     # Check if models are already downloaded
     model_dir = models_dir / "LeanSearch-PS"
     faiss_dir = models_dir / "LeanSearch-PS-faiss"
+    faiss_index = faiss_dir / "LeanSearch-PS-faiss.index"
 
+    # Ensure git-lfs is available for large file downloads
+    has_lfs = ensure_git_lfs()
+    if not has_lfs:
+        print_error("Git LFS is required but could not be installed automatically.")
+        print("Please install git-lfs manually:")
+        print("  - Ubuntu/Debian: sudo apt-get install git-lfs")
+        print("  - macOS: brew install git-lfs")
+        print("  - RHEL/CentOS: sudo yum install git-lfs")
+        print("Then run: git lfs install")
+        raise RuntimeError("Git LFS not available")
+
+    # Download LeanSearch-PS model
     if model_dir.exists() and (model_dir / "adapter_config.json").exists():
         print_success("LeanSearch-PS model already downloaded")
     else:
         print_step("Downloading LeanSearch-PS model (~42MB)")
+        if model_dir.exists():
+            shutil.rmtree(model_dir)
         run_command(
             ["git", "clone", "https://huggingface.co/FrenzyMath/LeanSearch-PS", str(model_dir)],
             timeout=600
         )
         print_success("LeanSearch-PS model downloaded")
 
-    if faiss_dir.exists() and (faiss_dir / "LeanSearch-PS-faiss.index").exists():
+    # Download FAISS index with size verification
+    needs_download = True
+    if faiss_dir.exists() and verify_file_size(faiss_index, 3000):  # At least 3GB
         print_success("FAISS index already downloaded")
-    else:
+        needs_download = False
+
+    if needs_download:
         print_step("Downloading FAISS index (~4GB, this may take a while)")
+        if faiss_dir.exists():
+            shutil.rmtree(faiss_dir)
         run_command(
             ["git", "clone", "https://huggingface.co/FrenzyMath/LeanSearch-PS-faiss", str(faiss_dir)],
             timeout=3600
         )
+
+        # Verify the download actually got the large files
+        if not verify_file_size(faiss_index, 3000):
+            print_error(f"FAISS index file is too small ({faiss_index.stat().st_size / (1024*1024):.1f} MB)")
+            print_error("Git LFS may not be working properly. Trying to pull LFS files...")
+            # Try to pull LFS files explicitly
+            run_command(["git", "-C", str(faiss_dir), "lfs", "pull"], timeout=3600)
+
+            if not verify_file_size(faiss_index, 3000):
+                raise RuntimeError("Failed to download FAISS index files. Please ensure git-lfs is properly configured.")
+
         print_success("FAISS index downloaded")
 
 
