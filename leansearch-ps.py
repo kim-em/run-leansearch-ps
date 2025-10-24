@@ -290,6 +290,7 @@ def install_python_deps(venv_python: Path):
         "torchvision",
         "peft",
         "accelerate",
+        "huggingface_hub",
     ]
 
     # Check if packages are already installed
@@ -401,54 +402,71 @@ def download_models(repo_dir: Path):
     faiss_dir = models_dir / "LeanSearch-PS-faiss"
     faiss_index = faiss_dir / "LeanSearch-PS-faiss.index"
 
-    # Ensure git-lfs is available for large file downloads
-    has_lfs = ensure_git_lfs()
-    if not has_lfs:
-        print_error("Git LFS is required but could not be installed automatically.")
-        print("Please install git-lfs manually:")
-        print("  - Ubuntu/Debian: sudo apt-get install git-lfs")
-        print("  - macOS: brew install git-lfs")
-        print("  - RHEL/CentOS: sudo yum install git-lfs")
-        print("Then run: git lfs install")
-        raise RuntimeError("Git LFS not available")
+    # Import HuggingFace Hub library (installed with dependencies)
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:
+        print_error("huggingface_hub library not found. Installing it now...")
+        # This shouldn't happen since we install it, but handle gracefully
+        run_command([sys.executable, "-m", "pip", "install", "huggingface_hub"], timeout=300)
+        from huggingface_hub import snapshot_download
 
-    # Download LeanSearch-PS model
+    # Download LeanSearch-PS model (small, using git is fine)
     if model_dir.exists() and (model_dir / "adapter_config.json").exists():
         print_success("LeanSearch-PS model already downloaded")
     else:
         print_step("Downloading LeanSearch-PS model (~42MB)")
         if model_dir.exists():
             shutil.rmtree(model_dir)
-        run_command(
-            ["git", "clone", "https://huggingface.co/FrenzyMath/LeanSearch-PS", str(model_dir)],
-            timeout=600
-        )
-        print_success("LeanSearch-PS model downloaded")
 
-    # Download FAISS index with size verification
+        # Try git-lfs first, fall back to HuggingFace Hub if needed
+        has_lfs = ensure_git_lfs()
+        if has_lfs:
+            try:
+                run_command(
+                    ["git", "clone", "https://huggingface.co/FrenzyMath/LeanSearch-PS", str(model_dir)],
+                    timeout=600
+                )
+                print_success("LeanSearch-PS model downloaded")
+            except Exception:
+                # Fallback to HuggingFace Hub
+                print("Git clone failed, using HuggingFace Hub...")
+                snapshot_download(
+                    repo_id="FrenzyMath/LeanSearch-PS",
+                    local_dir=str(model_dir),
+                    local_dir_use_symlinks=False
+                )
+                print_success("LeanSearch-PS model downloaded")
+        else:
+            # Use HuggingFace Hub directly
+            snapshot_download(
+                repo_id="FrenzyMath/LeanSearch-PS",
+                local_dir=str(model_dir),
+                local_dir_use_symlinks=False
+            )
+            print_success("LeanSearch-PS model downloaded")
+
+    # Download FAISS index using HuggingFace Hub (automatic progress bar)
     needs_download = True
     if faiss_dir.exists() and verify_file_size(faiss_index, 3000):  # At least 3GB
         print_success("FAISS index already downloaded")
         needs_download = False
 
     if needs_download:
-        print_step("Downloading FAISS index (~4GB, this may take a while)")
+        print_step("Downloading FAISS index (~4GB with progress bar)")
         if faiss_dir.exists():
             shutil.rmtree(faiss_dir)
-        run_command(
-            ["git", "clone", "https://huggingface.co/FrenzyMath/LeanSearch-PS-faiss", str(faiss_dir)],
-            timeout=3600
+
+        # Use HuggingFace Hub for reliable download with progress
+        snapshot_download(
+            repo_id="FrenzyMath/LeanSearch-PS-faiss",
+            local_dir=str(faiss_dir),
+            local_dir_use_symlinks=False
         )
 
-        # Verify the download actually got the large files
+        # Verify the download
         if not verify_file_size(faiss_index, 3000):
-            print_error(f"FAISS index file is too small ({faiss_index.stat().st_size / (1024*1024):.1f} MB)")
-            print_error("Git LFS may not be working properly. Trying to pull LFS files...")
-            # Try to pull LFS files explicitly
-            run_command(["git", "-C", str(faiss_dir), "lfs", "pull"], timeout=3600)
-
-            if not verify_file_size(faiss_index, 3000):
-                raise RuntimeError("Failed to download FAISS index files. Please ensure git-lfs is properly configured.")
+            raise RuntimeError(f"FAISS index file is too small ({faiss_index.stat().st_size / (1024*1024):.1f} MB). Download may have failed.")
 
         print_success("FAISS index downloaded")
 
