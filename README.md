@@ -7,7 +7,7 @@ Automated setup script for the [REAL-Prover](https://github.com/frenzymath/REAL-
 **One-line installation:**
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/kim-em/run_leansearch_ps/master/leansearch-ps.py | python3 -
+curl -sSL https://raw.githubusercontent.com/kim-em/run-leansearch-ps/master/leansearch-ps.py | python3 -
 ```
 
 This downloads and runs the setup script, which installs everything to the current directory and starts the server.
@@ -16,7 +16,7 @@ This downloads and runs the setup script, which installs everything to the curre
 
 ```bash
 # Download the script
-curl -O https://raw.githubusercontent.com/kim-em/run_leansearch_ps/master/leansearch-ps.py
+curl -O https://raw.githubusercontent.com/kim-em/run-leansearch-ps/master/leansearch-ps.py
 
 # Run with default settings (installs to current directory and starts server)
 python3 leansearch-ps.py
