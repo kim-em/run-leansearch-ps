@@ -346,44 +346,6 @@ def clone_repository(install_dir: Path) -> Path:
     return repo_dir
 
 
-def ensure_git_lfs() -> bool:
-    """Check if git-lfs is installed and install it if possible"""
-    try:
-        run_command(["git", "lfs", "version"], capture_output=True)
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
-
-    print_step("Git LFS not found, attempting to install...")
-
-    # Try to install git-lfs based on platform
-    system = platform.system()
-    try:
-        if system == "Linux":
-            # Try apt-get first (Debian/Ubuntu)
-            try:
-                run_command(["sudo", "apt-get", "update"], capture_output=True)
-                run_command(["sudo", "apt-get", "install", "-y", "git-lfs"], capture_output=True)
-            except subprocess.CalledProcessError:
-                # Try yum (RHEL/CentOS)
-                try:
-                    run_command(["sudo", "yum", "install", "-y", "git-lfs"], capture_output=True)
-                except subprocess.CalledProcessError:
-                    return False
-        elif system == "Darwin":
-            # Try Homebrew on macOS
-            run_command(["brew", "install", "git-lfs"], capture_output=True)
-        else:
-            return False
-
-        # Initialize git-lfs
-        run_command(["git", "lfs", "install"], capture_output=True)
-        print_success("Git LFS installed")
-        return True
-    except Exception:
-        return False
-
-
 def verify_file_size(file_path: Path, min_size_mb: int) -> bool:
     """Verify a file exists and is at least min_size_mb megabytes"""
     if not file_path.exists():
@@ -426,7 +388,7 @@ def download_models(repo_dir: Path, venv_python: Path):
     faiss_dir = models_dir / "LeanSearch-PS-faiss"
     faiss_index = faiss_dir / "LeanSearch-PS-faiss.index"
 
-    # Download LeanSearch-PS model (small, using git is fine)
+    # Download LeanSearch-PS model
     if model_dir.exists() and (model_dir / "adapter_config.json").exists():
         print_success("LeanSearch-PS model already downloaded")
     else:
@@ -434,24 +396,8 @@ def download_models(repo_dir: Path, venv_python: Path):
         if model_dir.exists():
             shutil.rmtree(model_dir)
 
-        # Try git-lfs first, fall back to HuggingFace Hub if needed
-        has_lfs = ensure_git_lfs()
-        if has_lfs:
-            try:
-                run_command(
-                    ["git", "clone", "https://huggingface.co/FrenzyMath/LeanSearch-PS", str(model_dir)],
-                    timeout=600
-                )
-                print_success("LeanSearch-PS model downloaded")
-            except Exception:
-                # Fallback to HuggingFace Hub
-                print("Git clone failed, using HuggingFace Hub...")
-                download_with_hf_hub(venv_python, "FrenzyMath/LeanSearch-PS", model_dir)
-                print_success("LeanSearch-PS model downloaded")
-        else:
-            # Use HuggingFace Hub directly
-            download_with_hf_hub(venv_python, "FrenzyMath/LeanSearch-PS", model_dir)
-            print_success("LeanSearch-PS model downloaded")
+        download_with_hf_hub(venv_python, "FrenzyMath/LeanSearch-PS", model_dir)
+        print_success("LeanSearch-PS model downloaded")
 
     # Download FAISS index using HuggingFace Hub (automatic progress bar)
     needs_download = True
