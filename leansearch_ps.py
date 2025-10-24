@@ -20,11 +20,13 @@ import json
 import os
 import platform
 import shutil
+import signal
+import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 
 class Colors:
@@ -97,6 +99,94 @@ def run_command(cmd: list, cwd: Optional[Path] = None, check: bool = True,
     except subprocess.TimeoutExpired:
         print_error(f"Command timed out: {' '.join(cmd)}")
         raise
+
+
+def is_port_in_use(port: int) -> bool:
+    """Check if a port is already in use"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('localhost', port))
+            return False
+        except OSError:
+            return True
+
+
+def find_server_processes(repo_dir: Path) -> List[int]:
+    """Find PIDs of running server.py processes"""
+    server_script = repo_dir / "LeanSearch-PS-inference" / "server.py"
+    pids = []
+
+    try:
+        if platform.system() == "Windows":
+            # Windows: use wmic or tasklist
+            result = subprocess.run(
+                ['tasklist', '/FI', 'IMAGENAME eq python.exe', '/FO', 'CSV'],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            # Parse output to find processes running server.py
+            # This is simplified - full implementation would parse CSV
+        else:
+            # Unix-like: use ps and grep
+            result = subprocess.run(
+                ['ps', 'aux'],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            for line in result.stdout.split('\n'):
+                if 'server.py' in line and str(server_script) in line:
+                    parts = line.split()
+                    if len(parts) > 1:
+                        try:
+                            pids.append(int(parts[1]))
+                        except ValueError:
+                            pass
+    except Exception:
+        pass
+
+    return pids
+
+
+def kill_existing_servers(repo_dir: Path, port: int) -> bool:
+    """Kill existing server processes"""
+    pids = find_server_processes(repo_dir)
+
+    if not pids and not is_port_in_use(port):
+        return True
+
+    if pids:
+        print(f"{Colors.YELLOW}Found {len(pids)} running server process(es){Colors.END}")
+        for pid in pids:
+            try:
+                print(f"  Killing process {pid}...")
+                if platform.system() == "Windows":
+                    subprocess.run(['taskkill', '/F', '/PID', str(pid)], check=False)
+                else:
+                    os.kill(pid, signal.SIGTERM)
+                    # Wait a bit for graceful shutdown
+                    time.sleep(1)
+                    # Force kill if still running
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass  # Already dead
+            except Exception as e:
+                print_error(f"Failed to kill process {pid}: {e}")
+
+        # Wait for port to be released
+        for _ in range(10):
+            if not is_port_in_use(port):
+                print_success("Existing server processes stopped")
+                return True
+            time.sleep(0.5)
+
+    if is_port_in_use(port):
+        print_error(f"Port {port} is still in use. Please stop the process manually or use a different port.")
+        return False
+
+    return True
 
 
 def check_dependencies() -> Tuple[bool, list]:
@@ -465,6 +555,10 @@ else:
     sys.exit(1)
 '''
 
+    # Kill any existing servers first
+    if not kill_existing_servers(repo_dir, port):
+        return False
+
     # Start server in background
     print("Starting server for tests...")
     server_script = repo_dir / "LeanSearch-PS-inference" / "server.py"
@@ -520,6 +614,11 @@ else:
 def start_server(venv_python: Path, repo_dir: Path, port: int):
     """Start the LeanSearch-PS server"""
     print_step(f"Starting server on port {port}")
+
+    # Kill any existing servers first
+    if not kill_existing_servers(repo_dir, port):
+        print_error("Failed to stop existing servers. Exiting.")
+        sys.exit(1)
 
     server_script = repo_dir / "LeanSearch-PS-inference" / "server.py"
     server_cwd = repo_dir / "LeanSearch-PS-inference"
