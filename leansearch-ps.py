@@ -24,7 +24,9 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import time
+import urllib.request
 from pathlib import Path
 from typing import Optional, Tuple, List
 
@@ -210,12 +212,49 @@ def check_dependencies() -> Tuple[bool, list]:
     return len(missing) == 0, missing
 
 
+def ensure_pip_in_venv(venv_python: Path):
+    """Ensure pip is available in the virtual environment"""
+    # First, check if pip is already available
+    try:
+        run_command([str(venv_python), "-m", "pip", "--version"], capture_output=True)
+        return  # pip is available, nothing to do
+    except subprocess.CalledProcessError:
+        pass  # pip not available, need to install it
+
+    print_step("Installing pip in virtual environment")
+
+    # Try ensurepip first (built-in method)
+    try:
+        run_command([str(venv_python), "-m", "ensurepip", "--upgrade"], capture_output=True)
+        print_success("pip installed via ensurepip")
+        return
+    except subprocess.CalledProcessError:
+        pass  # ensurepip failed, try get-pip.py
+
+    # Fallback: download and run get-pip.py
+    print("ensurepip not available, downloading get-pip.py...")
+    try:
+        with tempfile.NamedTemporaryFile(mode='wb', suffix='.py', delete=False) as tmp:
+            tmp_path = tmp.name
+            urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', tmp_path)
+
+        run_command([str(venv_python), tmp_path], capture_output=True)
+        os.unlink(tmp_path)
+        print_success("pip installed via get-pip.py")
+    except Exception as e:
+        print_error(f"Failed to install pip: {e}")
+        raise
+
+
 def setup_virtual_env(repo_dir: Path) -> Path:
     """Create and setup Python virtual environment"""
     venv_dir = repo_dir / "venv"
 
     if venv_dir.exists():
         print_success(f"Virtual environment already exists at {venv_dir}")
+        # Even if venv exists, ensure pip is available
+        venv_python = get_venv_python(venv_dir)
+        ensure_pip_in_venv(venv_python)
         return venv_dir
 
     print_step(f"Creating virtual environment at {venv_dir}")
@@ -223,11 +262,7 @@ def setup_virtual_env(repo_dir: Path) -> Path:
 
     # Ensure pip is available in the venv (some systems don't include it by default)
     venv_python = get_venv_python(venv_dir)
-    try:
-        run_command([str(venv_python), "-m", "ensurepip", "--upgrade"], capture_output=True)
-    except subprocess.CalledProcessError:
-        # ensurepip might fail if pip is already there, that's okay
-        pass
+    ensure_pip_in_venv(venv_python)
 
     print_success("Virtual environment created")
 
