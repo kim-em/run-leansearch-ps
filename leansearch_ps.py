@@ -6,7 +6,7 @@ This script automatically sets up the LeanSearch-PS premise selection server.
 It is idempotent and can be safely run multiple times.
 
 Usage:
-    python3 setup_leansearch_ps.py [--install-dir PATH] [--port PORT] [--skip-tests]
+    python3 leansearch_ps.py [--install-dir PATH] [--port PORT] [--skip-tests]
 
 Requirements:
     - Python 3.8+
