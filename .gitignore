@@ -1,49 +1,11 @@
-# Python
+# Python bytecode
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
-# Virtual environments
+# Virtual environment (created by script)
 venv/
-env/
-ENV/
-.venv
-
-# PyCharm
-.idea/
-
-# VS Code
-.vscode/
-
-# MacOS
-.DS_Store
-
-# Downloaded models and data (too large for git)
-models/
-*.index
-*.faiss
-answers.json
 
 # REAL-Prover repository (cloned by script)
 REAL-Prover/
 
-# Logs
-*.log
+# macOS
+.DS_Store
