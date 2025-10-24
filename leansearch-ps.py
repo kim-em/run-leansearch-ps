@@ -392,7 +392,31 @@ def verify_file_size(file_path: Path, min_size_mb: int) -> bool:
     return size_mb >= min_size_mb
 
 
-def download_models(repo_dir: Path):
+def download_with_hf_hub(venv_python: Path, repo_id: str, local_dir: Path):
+    """Download a HuggingFace repository using the venv Python"""
+    # Create a Python script to run with venv Python
+    download_script = f"""
+import sys
+from pathlib import Path
+from huggingface_hub import snapshot_download
+
+snapshot_download(
+    repo_id="{repo_id}",
+    local_dir="{local_dir}",
+    local_dir_use_symlinks=False
+)
+"""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as tmp:
+        tmp.write(download_script)
+        tmp_path = tmp.name
+
+    try:
+        run_command([str(venv_python), tmp_path], timeout=3600)
+    finally:
+        os.unlink(tmp_path)
+
+
+def download_models(repo_dir: Path, venv_python: Path):
     """Download pre-trained models and FAISS index"""
     models_dir = repo_dir / "LeanSearch-PS-inference" / "models"
     models_dir.mkdir(exist_ok=True)
@@ -401,15 +425,6 @@ def download_models(repo_dir: Path):
     model_dir = models_dir / "LeanSearch-PS"
     faiss_dir = models_dir / "LeanSearch-PS-faiss"
     faiss_index = faiss_dir / "LeanSearch-PS-faiss.index"
-
-    # Import HuggingFace Hub library (installed with dependencies)
-    try:
-        from huggingface_hub import snapshot_download
-    except ImportError:
-        print_error("huggingface_hub library not found. Installing it now...")
-        # This shouldn't happen since we install it, but handle gracefully
-        run_command([sys.executable, "-m", "pip", "install", "huggingface_hub"], timeout=300)
-        from huggingface_hub import snapshot_download
 
     # Download LeanSearch-PS model (small, using git is fine)
     if model_dir.exists() and (model_dir / "adapter_config.json").exists():
@@ -431,19 +446,11 @@ def download_models(repo_dir: Path):
             except Exception:
                 # Fallback to HuggingFace Hub
                 print("Git clone failed, using HuggingFace Hub...")
-                snapshot_download(
-                    repo_id="FrenzyMath/LeanSearch-PS",
-                    local_dir=str(model_dir),
-                    local_dir_use_symlinks=False
-                )
+                download_with_hf_hub(venv_python, "FrenzyMath/LeanSearch-PS", model_dir)
                 print_success("LeanSearch-PS model downloaded")
         else:
             # Use HuggingFace Hub directly
-            snapshot_download(
-                repo_id="FrenzyMath/LeanSearch-PS",
-                local_dir=str(model_dir),
-                local_dir_use_symlinks=False
-            )
+            download_with_hf_hub(venv_python, "FrenzyMath/LeanSearch-PS", model_dir)
             print_success("LeanSearch-PS model downloaded")
 
     # Download FAISS index using HuggingFace Hub (automatic progress bar)
@@ -458,11 +465,7 @@ def download_models(repo_dir: Path):
             shutil.rmtree(faiss_dir)
 
         # Use HuggingFace Hub for reliable download with progress
-        snapshot_download(
-            repo_id="FrenzyMath/LeanSearch-PS-faiss",
-            local_dir=str(faiss_dir),
-            local_dir_use_symlinks=False
-        )
+        download_with_hf_hub(venv_python, "FrenzyMath/LeanSearch-PS-faiss", faiss_dir)
 
         # Verify the download
         if not verify_file_size(faiss_index, 3000):
@@ -849,7 +852,7 @@ def main():
 
         install_python_deps(venv_python)
 
-        download_models(repo_dir)
+        download_models(repo_dir, venv_python)
 
         configure_server(repo_dir)
 
