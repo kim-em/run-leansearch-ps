@@ -210,9 +210,9 @@ def check_dependencies() -> Tuple[bool, list]:
     return len(missing) == 0, missing
 
 
-def setup_virtual_env(install_dir: Path) -> Path:
+def setup_virtual_env(repo_dir: Path) -> Path:
     """Create and setup Python virtual environment"""
-    venv_dir = install_dir / "venv"
+    venv_dir = repo_dir / "venv"
 
     if venv_dir.exists():
         print_success(f"Virtual environment already exists at {venv_dir}")
@@ -702,12 +702,12 @@ def main():
 
     try:
         # Setup steps
-        venv_dir = setup_virtual_env(install_dir)
+        repo_dir = clone_repository(install_dir)
+
+        venv_dir = setup_virtual_env(repo_dir)
         venv_python = get_venv_python(venv_dir)
 
         install_python_deps(venv_python)
-
-        repo_dir = clone_repository(install_dir)
 
         download_models(repo_dir)
 

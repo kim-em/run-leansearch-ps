@@ -90,7 +90,7 @@ Start the server:
 
 # Or manually:
 cd ./REAL-Prover/LeanSearch-PS-inference
-source venv/bin/activate
+source ../../venv/bin/activate
 export KMP_DUPLICATE_LIB_OK=TRUE
 python server.py
 ```
@@ -183,8 +183,8 @@ Default installation structure:
 
 ```
 ./
-├── venv/                          # Python virtual environment
 ├── REAL-Prover/
+│   ├── venv/                      # Python virtual environment
 │   └── LeanSearch-PS-inference/
 │       ├── models/
 │       │   ├── LeanSearch-PS/     # LoRA adapter (42MB)
